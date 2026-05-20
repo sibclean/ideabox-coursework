@@ -9,11 +9,9 @@
     .chat-history::-webkit-scrollbar { width: 6px; }
     .chat-history::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.15); border-radius: 10px; }
 
-    /* Контейнер сообщения с аватаркой */
     .msg-row { display: flex; gap: 10px; margin-bottom: 8px; width: 100%; position: relative; }
     .msg-row.my-msg { justify-content: flex-end; }
     
-    /* Стили круглых аватарок в чате */
     .chat-avatar-mini { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: opacity 0.2s;}
     .chat-avatar-mini:hover { opacity: 0.8; }
     .chat-avatar-placeholder { width: 36px; height: 36px; border-radius: 50%; background-color: #abc; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; flex-shrink: 0; transition: opacity 0.2s;}
@@ -26,7 +24,6 @@
     .my-msg:hover .msg-bubble { filter: brightness(0.95); }
     .peer-msg .msg-bubble { background-color: #ffffff; color: #000000; border-bottom-left-radius: 4px; }
 
-    /* Контекстное меню действий */
     .custom-context-menu { display: none; position: fixed; background: #ffffff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); padding: 5px 0; z-index: 9999; min-width: 160px; border: 1px solid #e1e3e6; }
     .context-menu-btn { display: flex; align-items: center; width: 100%; text-align: left; background: none; border: none; padding: 8px 15px; font-size: 0.9rem; color: #333; transition: background 0.2s; gap: 8px; }
     .context-menu-btn:hover { background: #f0f2f5; }
@@ -38,7 +35,6 @@
     .my-msg .msg-time { color: rgba(255, 255, 255, 0.7); }
     .peer-msg .msg-time { color: #8f98a0; }
 
-    /* Отображение картинок и файлов в чате */
     .chat-img-attach { max-width: 100%; max-height: 250px; border-radius: 8px; margin-bottom: 4px; display: block; cursor: pointer; }
     .chat-file-attach { display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.03); padding: 8px 12px; border-radius: 8px; text-decoration: none; color: inherit; margin-bottom: 4px; border: 1px solid rgba(0,0,0,0.05); }
     .my-msg .chat-file-attach { background: rgba(255,255,255,0.15); color: white; }
@@ -186,7 +182,6 @@
 
     function scrollToBottom() { chatLog.scrollTop = chatLog.scrollHeight; }
 
-    // Делегирование события клика на изображения в чате (Выпирающее окошко)
     chatLog.addEventListener('click', function(e) {
         const clickedImg = e.target.closest('.chat-img-attach');
         if (clickedImg) {
@@ -198,7 +193,6 @@
         }
     });
 
-    // --- ЛОГИКА ДЛЯ ВСПЛЫВАЮЩЕГО МЕНЮ (ПРАВАЯ КНОПКА МЫШИ) ---
     chatLog.addEventListener('contextmenu', function(e) {
         const msgRow = e.target.closest('.my-msg');
         if (msgRow) {
@@ -237,14 +231,12 @@
         }
     };
 
-    // --- ОБРАБОТКА WEBSOCKET ---
     chatSocket.onmessage = function(e) {
         const data = JSON.parse(e.data);
         
         if (data.type === 'chat_message') {
             const isMe = data.username === currentUsername;
             
-            // Рендерим КЛИКАБЕЛЬНУЮ аватарку собеседника
             let avatarHTML = '';
             if (!isMe) {
                 let imgTag = data.avatar_url ? 
@@ -253,7 +245,6 @@
                 avatarHTML = `<a href="/user/${data.username}/">${imgTag}</a>`;
             }
 
-            // Бейдж и КЛИКАБЕЛЬНОЕ имя для сокетов
             let roleBadge = (data.role === 'TCH') ? `<span class="badge bg-warning text-dark ms-2" style="font-size: 0.6rem; padding: 2px 6px;">Модератор</span>` : '';
             let senderNameHTML = !isMe ? `<div class="sender-name d-flex align-items-center"><a href="/user/${data.username}/" class="text-decoration-none"><span>${data.full_name}</span></a>${roleBadge}</div>` : '';
             
@@ -299,7 +290,6 @@
         }
     };
 
-    // --- ЛОГИКА AJAX ЗАГРУЗКИ ФАЙЛОВ ---
     const fileTrigger = document.getElementById('file-trigger');
     const fileInput = document.getElementById('chat-file-input');
 
@@ -331,7 +321,6 @@
         });
     });
 
-    // --- НАБОР ТЕКСТА И ОТПРАВКА СТАНДАРТНЫХ СООБЩЕНИЙ ---
     messageInputDom.addEventListener('input', function() {
         if (!isTyping) { isTyping = true; chatSocket.send(JSON.stringify({ 'type': 'typing', 'is_typing': true })); }
         clearTimeout(typingTimer);
@@ -358,7 +347,6 @@
         }
     };
     
-    // Эмодзи
     const emojiBtnToggle = document.getElementById('toggle-emoji');
     const emojiPicker = document.getElementById('emoji-picker');
     emojiBtnToggle.addEventListener('click', () => emojiPicker.classList.toggle('show'));
