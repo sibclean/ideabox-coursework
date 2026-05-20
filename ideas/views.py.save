@@ -1,0 +1,423 @@
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.core.mail import EmailMultiAlternatives
+from django.conf import settings
+from django.http import Http404, HttpResponse
+from django.db.models import Q
+from django.contrib.auth import login
+from django.contrib.sites.shortcuts import get_current_site
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
+from django.contrib.auth.tokens import default_token_generator
+from django.contrib.auth.models import User
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from django.http import JsonResponse
+from django.contrib.auth.models import User
+from django.contrib.auth.decorators import user_passes_test
+from django.core.exceptions import PermissionDenied
+from .models import Idea, Category, UserProfile, TeamRequest
+from .forms import IdeaForm, UserProfileForm, UserRegistrationForm
+from .models import Idea, Category, UserProfile, TeamRequest, Conversation, Message
+
+def send_html_notification(subject, to_email, title, message, action_url=None, action_text="Перейти"):
+    context = {'title': title, 'message': message, 'action_url': action_url, 'action_text': action_text}
+    html_body = render_to_string('emails/notification.html', context)
+    email = EmailMultiAlternatives(subject, strip_tags(html_body), settings.EMAIL_HOST_USER, [to_email])
+    email.attach_alternative(html_body, "text/html")
+    email.send(fail_silently=True)
+
+def idea_list(request):
+    ideas_queryset = Idea.objects.filter(status='APP').select_related(
+        'author', 'author__profile'
+    ).prefetch_related('categories').order_by('-created_at')
+    
+    search_query = request.GET.get('q', '').strip()
+    current_tags = request.GET.get('role', request.GET.get('tags', '')).strip() 
+    current_category = request.GET.get('category', '').strip()
+    if current_category:
+        if current_category.isdigit():
+            ideas_queryset = ideas_queryset.filter(categories__id=int(current_category))
+        else:
+            ideas_queryset = ideas_queryset.filter(categories__name__icontains=current_category)
+    if current_tags:
+        ideas_queryset = ideas_queryset.filter(required_people_tags__icontains=current_tags)  
+    if search_query:
+        ideas_queryset = ideas_queryset.filter(
+            Q(title__icontains=search_query) | Q(description__icontains=search_query)
+        )
+    ideas_queryset = ideas_queryset.distinct()
+    return render(request, 'ideas/idea_list.html', {
+        'ideas': ideas_queryset,
+        'categories': Category.objects.all(),
+        'current_category': current_category,
+        'current_tags': current_tags,
+        'search_query': search_query,
+    })
+
+def register(request):
+    if request.method == 'POST':
+        form = UserRegistrationForm(request.POST) 
+        if form.is_valid():
+            user = form.save(commit=False); user.is_active = False; user.save()
+            current_site = get_current_site(request)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            activate_url = f"https://{current_site.domain}/activate/{uid}/{token}/"
+            send_html_notification('Активация IdeaBox', user.email, 'Добро пожаловать!', 'Подтвердите почту.', activate_url, 'Подтвердить')
+            return render(request, 'registration/email_confirmation_sent.html', {'email': user.email})
+    else: form = UserRegistrationForm()
+    return render(request, 'registration/register.html', {'form': form})
+
+def activate(request, uidb64, token):
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = User.objects.get(pk=uid)
+    except: user = None
+    if user is not None and default_token_generator.check_token(user, token):
+        user.is_active = True; user.save()
+        login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+        return redirect('idea_list')
+    return HttpResponse('Ошибка активации')
+
+def idea_detail(request, pk):
+    idea = get_object_or_404(Idea, pk=pk)
+    return render(request, 'ideas/idea_detail.html', {'idea': idea})
+
+@login_required
+def idea_create(request):
+    if request.method == 'POST':
+        form = IdeaForm(request.POST, request.FILES)
+        if form.is_valid():
+            new_idea = form.save(commit=False)
+            new_idea.author = request.user
+            new_idea.status = 'MOD'
+            new_idea.save()
+            form.save_m2m() 
+            
+            messages.success(request, 'Идея успешно создана и отправлена на проверку!')
+            return redirect('idea_list') 
+    else: 
+        form = IdeaForm()
+        
+    return render(request, 'ideas/idea_form.html', {'form': form, 'is_new': True})
+@login_required
+def idea_edit(request, pk):
+    idea = get_object_or_404(Idea, pk=pk)
+    
+    # Защита: редактировать может только автор
+    if idea.author != request.user: 
+	        raise Http404("У вас нет прав для редактирования этого проекта.")
+        
+    if request.method == 'POST':
+        # ВАЖНО: передаем request.FILES и instance
+        form = IdeaForm(request.POST, request.FILES, instance=idea)
+        if form.is_valid(): 
+            form.save()
+            messages.success(request, 'Профиль проекта успешно обновлен!')
+            return redirect('idea_detail', pk=idea.pk)
+    else: 
+        form = IdeaForm(instance=idea)
+        
+    return render(request, 'ideas/idea_form.html', {'form': form, 'idea': idea, 'is_new': False})
+@login_required
+def idea_delete(request, pk):
+    idea = get_object_or_404(Idea, pk=pk)
+    if idea.author == request.user: idea.delete()
+    return redirect('idea_list')
+
+@login_required
+def join_team(request, pk):
+    idea = get_object_or_404(Idea, pk=pk)
+    if TeamRequest.objects.filter(idea=idea, user=request.user).exists():
+        messages.warning(request, "Вы уже отправляли заявку в эту команду!")
+        return redirect('idea_detail', pk=pk) # Или куда у тебя идет редирект
+    if request.method == 'POST':
+        role = request.POST.get('wanted_role')
+        contact = request.POST.get('contact_info')
+        message = request.POST.get('about_me')
+        
+        TeamRequest.objects.create(
+            idea=idea, user=request.user, 
+            role=role, contact_info=contact, message=message
+        )
+
+        send_html_notification(
+            f'🔥 Новая заявка в проект: {idea.title}',
+            idea.author.email,
+            'У вас новый кандидат!',
+            f'Пользователь {request.user.username} хочет в команду на роль "{role}".\n'
+            f'Контакты: {contact}\nСообщение: {message}',
+            f"https://{get_current_site(request).domain}/my-ideas/requests/",
+            "Управлять заявками"
+        )
+        messages.success(request, 'Ваша заявка сохранена и отправлена автору!')
+    return redirect('idea_detail', pk=pk)
+
+@login_required
+def manage_requests(request):
+    my_requests = TeamRequest.objects.filter(idea__author=request.user).order_by('-created_at')
+    return render(request, 'ideas/manage_requests.html', {'requests': my_requests})
+
+@login_required
+def respond_to_request(request, req_id, action):
+    team_req = get_object_or_404(TeamRequest, id=req_id, idea__author=request.user)
+    if action == 'accept':
+        team_req.status = 'accepted'
+        subject = "Вас приняли в команду!"
+        msg_text = f"Поздравляем! Автор идеи '{team_req.idea.title}' одобрил вашу заявку."
+    else:
+        team_req.status = 'rejected'
+        subject = "Ответ по вашей заявке"
+        msg_text = f"К сожалению, автор идеи '{team_req.idea.title}' отклонил вашу заявку."
+    team_req.save()
+
+    send_html_notification(
+        subject, team_req.user.email, subject, msg_text,
+        f"https://{get_current_site(request).domain}/idea/{team_req.idea.pk}/",
+        "Посмотреть идею"
+    )
+
+    messages.success(request, f"Статус заявки изменен.")
+    return redirect('manage_requests')
+
+@login_required
+def profile_edit(request):
+    profile = request.user.profile 
+    
+    if request.method == 'POST':
+        # ВАЖНО: добавлено request.FILES для обработки картинок (аватарок)
+        form = UserProfileForm(request.POST, request.FILES, instance=profile)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Профиль успешно обновлен!')
+            return redirect('profile_edit')
+    else:
+        form = UserProfileForm(instance=profile)
+        
+    return render(request, 'ideas/profile_form.html', {'form': form})
+@login_required
+def my_ideas_list(request):
+    ideas = Idea.objects.filter(author=request.user).order_by('-created_at')
+    return render(request, 'ideas/my_ideas_list.html', {'ideas': ideas})
+
+def privacy_policy(request): return render(request, 'privacy_policy.html')
+def terms_of_use(request): return render(request, 'terms_of_use.html')
+
+
+@login_required
+def chat_room(request, conversation_id):
+    conversation = get_object_or_404(Conversation, id=conversation_id)
+    
+    # Проверка доступа (разная для личных и групповых чатов)
+    has_access = False
+    if conversation.idea: # Это командный чат
+        if request.user in conversation.participants.all():
+            has_access = True
+    elif conversation.request: # Это личный чат по заявке
+        if request.user == conversation.request.user or request.user == conversation.request.idea.author:
+            has_access = True
+            
+    if not has_access:
+        raise Http404("У вас нет доступа к этому чату.")
+        
+    messages_history = conversation.messages.all()
+    # Помечаем чужие сообщения как прочитанные
+    messages_history.exclude(sender=request.user).update(is_read=True)
+    
+    return render(request, 'ideas/chat_room.html', {
+        'conversation': conversation,
+        'messages_history': messages_history,
+    })
+
+@login_required
+def chat_list_view(request):
+    # Ищем личные чаты ИЛИ групповые чаты, где пользователь есть в участниках
+    conversations = Conversation.objects.filter(
+        Q(request__user=request.user) | 
+        Q(request__idea__author=request.user) |
+        Q(participants=request.user)
+    ).distinct().order_by('-created_at')
+    
+    return render(request, 'ideas/chat_list.html', {'conversations': conversations})
+
+@login_required
+def moderation_panel(request):
+    # Проверяем на уровне бэкенда, что сюда зашел именно преподаватель (или админ)
+    # Используем 'TCH' (код роли Преподавателя из БД)
+    if request.user.profile.role != 'TCH' and not request.user.is_superuser:
+        raise PermissionDenied("Доступ разрешен только преподавателям.")
+    
+    # Достаем все идеи, которые ждут проверки
+    pending_ideas = Idea.objects.filter(status=Idea.Status.MODERATION).order_by('-created_at')
+    return render(request, 'ideas/moderation_panel.html', {'ideas': pending_ideas})
+
+@login_required
+def moderate_idea(request, pk, action):
+    # Снова жесткая проверка прав
+    if request.user.profile.role != 'TCH' and not request.user.is_superuser:
+        raise PermissionDenied("У вас нет прав на модерацию.")
+    
+    idea = get_object_or_404(Idea, pk=pk)
+    
+    if action == 'approve':
+        idea.status = Idea.Status.APPROVED
+    elif action == 'reject':
+        idea.status = Idea.Status.REJECTED
+        
+    idea.save()
+    return redirect('moderation_panel')
+
+@login_required
+def delete_chat(request, conversation_id):
+    conversation = get_object_or_404(Conversation, id=conversation_id)
+
+    # 1. Если это групповой чат (команда проекта)
+    if conversation.idea:
+        if request.user in conversation.participants.all():
+            conversation.participants.remove(request.user)
+            messages.success(request, "Вы покинули командный чат.")
+            
+    # 2. Если это чат по заявке (кандидат - автор)
+    elif conversation.request:
+        if request.user == conversation.request.user or request.user == conversation.request.idea.author:
+            conversation.delete()
+            messages.success(request, "Чат успешно удален.")
+            
+    # 3. Если это прямой чат (модератор - студент)
+    else:
+        if request.user in conversation.participants.all():
+            conversation.delete()
+            messages.success(request, "Диалог удален.")
+
+    return redirect('chat_list')
+@login_required
+def start_moderation_chat(request, idea_id):
+    idea = get_object_or_404(Idea, id=idea_id)
+    author = idea.author # Студент, создавший проект
+    teacher = request.user # Преподаватель
+    
+    if author == teacher:
+        messages.warning(request, "Вы не можете начать чат сами с собой.")
+        return redirect('moderation_panel')
+
+    # Ищем существующий личный чат между ними (где нет привязки к конкретной заявке или группе)
+    conversation = Conversation.objects.filter(
+        request__isnull=True,
+        idea__isnull=True,
+        participants=teacher
+    ).filter(participants=author).first()
+
+    # Если чата нет — создаем пустой чат и добавляем участников
+    if not conversation:
+        conversation = Conversation.objects.create()
+        conversation.participants.add(teacher, author)
+
+    return redirect('chat_room', conversation_id=conversation.id)
+@login_required
+def chat_room(request, conversation_id):
+    conversation = get_object_or_404(Conversation, id=conversation_id)
+    
+    # Универсальная и надежная проверка доступа
+    has_access = False
+    
+    # 1. Проверка по списку участников (для групповых чатов и прямых чатов модерации)
+    if conversation.participants.filter(id=request.user.id).exists():
+        has_access = True
+    # 2. Проверка по заявке (для старых личных чатов)
+    elif conversation.request and (request.user == conversation.request.user or request.user == conversation.request.idea.author):
+        has_access = True
+        
+    if not has_access:
+        raise Http404("У вас нет доступа к этому чату.")
+        
+    messages_history = conversation.messages.all()
+    messages_history.exclude(sender=request.user).update(is_read=True)
+    
+    return render(request, 'ideas/chat_room.html', {
+        'conversation': conversation,
+        'messages_history': messages_history,
+    })
+
+@login_required
+def upload_chat_file(request, conversation_id):
+    if request.method == 'POST':
+        conversation = get_object_or_404(Conversation, id=conversation_id)
+        uploaded_file = request.FILES.get('file')
+        
+        if not uploaded_file:
+            return JsonResponse({'error': 'Файл не выбран'}, status=400)
+
+        # Проверяем, картинка это или документ
+        is_image = uploaded_file.content_type.startswith('image/')
+
+        msg = Message(
+            conversation=conversation,
+            sender=request.user,
+            text=uploaded_file.name # Имя файла пишем в текст сообщения
+        )
+        
+        if is_image:
+            msg.image = uploaded_file
+        else:
+            msg.file = uploaded_file
+        msg.save() # Здесь сработает сжатие картинок
+
+        # Получаем красивое имя и РОЛЬ для бейджа
+        profile = request.user.profile
+        full_name = f"{profile.last_name or ''} {profile.first_name or ''}".strip() or request.user.username
+        avatar_url = profile.avatar.url if profile.avatar else None
+        user_role = profile.role
+
+        # Отправляем событие в WebSocket-группу чата
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'chat_{conversation_id}',
+            {
+                'type': 'chat_file_message',
+                'message_id': msg.id,
+                'username': request.user.username,
+                'full_name': full_name,
+                'avatar_url': avatar_url,
+                'role': user_role, # Передаем роль в сокет
+                'text': msg.text,
+                'image_url': msg.image.url if msg.image else None,
+                'file_url': msg.file.url if msg.file else None,
+                'created_at': msg.created_at.strftime('%H:%M')
+            }
+        )
+        return JsonResponse({'success': True})
+    return JsonResponse({'error': 'Недопустимый метод'}, status=400)
+@login_required
+def public_profile(request, username):
+    # Ищем пользователя по логину
+    target_user = get_object_or_404(User, username=username)
+    
+    # ИСПРАВЛЕНИЕ: Фильтруем идеи! Показываем ТОЛЬКО со статусом 'APP' (Одобрено)
+    user_ideas = Idea.objects.filter(author=target_user, status='APP').order_by('-created_at')
+    
+    return render(request, 'ideas/public_profile.html', {
+        'target_user': target_user,
+        'user_ideas': user_ideas
+    })
+
+
+def teacher_manager(request):
+    if request.method == 'POST':
+        user_id = request.POST.get('user_id')
+        user = get_object_or_404(User, id=user_id)
+        profile = user.profile
+        
+        # Переключение роли
+        if profile.role == UserProfile.Role.STUDENT:
+            profile.role = UserProfile.Role.TEACHER
+        else:
+            profile.role = UserProfile.Role.STUDENT
+        profile.save()
+        return redirect('teacher_manager')
+
+    users = User.objects.all()
+    return render(request, 'ideas/teacher_manager.html', {'users': users})

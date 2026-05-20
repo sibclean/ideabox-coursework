@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+
+{% block title %}Регистрация | Картотека идей{% endblock %}
+
+{% block content %}
+
+<div class="row justify-content-center align-items-center" style="min-height: 80vh;">
+    <div class="col-md-8 col-lg-6 col-xl-5">
+        
+        <div class="card shadow-lg border-0 rounded-4">
+            <div class="card-body p-5">
+                
+                <div class="text-center mb-4">
+                    <h2 class="fw-bold text-success">Присоединяйтесь!</h2>
+                    <p class="text-muted">Создайте аккаунт за пару секунд</p>
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                    {% endif %}
+
+                    {% for field in form %}
+                        
+                        {% if field.name == 'agreement' %}
+                            <div class="mb-4 p-3 bg-light rounded border d-flex align-items-start">
+                                <div class="me-3 pt-1">
+                                    {{ field }}
+                                </div>
+                                
+                                <div>
+                                    <label class="form-check-label text-muted" for="{{ field.id_for_label }}" style="cursor: pointer; line-height: 1.5;">
+                                        Я подтверждаю, что ознакомлен и принимаю условия 
+                                        <a href="{% url 'terms_of_use' %}" target="_blank" class="fw-bold text-decoration-none">
+                                            Пользовательского соглашения
+                                        </a>, 
+                                        а также даю согласие на обработку персональных данных согласно 
+                                        <a href="{% url 'privacy_policy' %}" target="_blank" class="fw-bold text-decoration-none">
+                                            Политике конфиденциальности
+                                        </a>.
+                                    </label>
+                                    
+                                    {% if field.errors %}
+                                        <div class="text-danger small fw-bold mt-1">
+                                            ⚠ Необходимо принять условия для регистрации!
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+
+                        {% else %}
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.help_text %}
+                                    <div class="form-text small text-muted">{{ field.help_text }}</div>
+                                {% endif %}
+                                {% for error in field.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                    {% endfor %}
+
+                    <div class="d-grid my-4">
+                        <button type="submit" class="btn btn-success btn-lg rounded-pill shadow-sm">
+                            Создать аккаунт
+                        </button>
+                    </div>
+
+                    <div class="text-center text-muted">
+                        Уже есть аккаунт? 
+                        <a href="{% url 'login' %}" class="text-decoration-none fw-bold">Войти</a>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var inputs = document.querySelectorAll('.card-body input');
+        inputs.forEach(function(input) {
+            if (input.type !== 'checkbox') {
+                input.classList.add('form-control');
+                input.style.backgroundColor = "#f8f9fa";
+            } else {
+                input.classList.add('form-check-input');
+            }
+        });
+    });
+</script>
+
+{% endblock %}

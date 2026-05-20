@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}Вход | Картотека идей{% endblock %}
+
+{% block content %}
+
+<div class="row justify-content-center align-items-center" style="min-height: 70vh;">
+    <div class="col-md-6 col-lg-5 col-xl-4">
+        
+        <div class="card shadow-lg border-0 rounded-4">
+            <div class="card-body p-5">
+                
+                <div class="text-center mb-4">
+                    <h2 class="fw-bold text-primary">С возвращением!</h2>
+                    <p class="text-muted">Войдите, чтобы управлять идеями</p>
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    {% if form.errors %}
+                        <div class="alert alert-danger small">
+                            Неверное имя пользователя или пароль.
+                        </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Имя пользователя</label>
+                        {{ form.username }}
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Пароль</label>
+                        {{ form.password }}
+                    </div>
+
+                    <div class="d-grid mb-4">
+                        <button type="submit" class="btn btn-primary btn-lg rounded-pill shadow-sm">
+                            Войти в аккаунт
+                        </button>
+                    </div>
+
+                    <div class="text-center text-muted">
+                        Нет аккаунта? 
+                        <a href="{% url 'register' %}" class="text-decoration-none fw-bold">Зарегистрироваться</a>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var inputs = document.querySelectorAll('.card-body input');
+        inputs.forEach(function(input) {
+            input.classList.add('form-control', 'form-control-lg');
+            input.style.backgroundColor = "#f8f9fa";
+            input.style.border = "1px solid #dee2e6";
+        });
+    });
+</script>
+
+{% endblock %}

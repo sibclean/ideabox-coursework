@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+
+{% block title %}Панель модерации{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center border-bottom pb-3 mb-4 gap-3">
+            <div>
+                <h3 class="fw-bold text-dark mb-1">
+                    <i class="bi bi-shield-lock-fill text-primary"></i> Панель модерации
+                </h3>
+                <p class="text-muted small mb-0">Рассмотрение проектных предложений и координация со студентами</p>
+            </div>
+            <div>
+                <span class="badge bg-primary px-3 py-2 rounded-pill fs-6 shadow-sm">
+                    Ожидают проверки: <span id="counter-value">{{ ideas|length }}</span>
+                </span>
+            </div>
+        </div>
+
+        {% if ideas %}
+            <div class="card shadow-sm border-0 rounded-4 mb-4 bg-white">
+                <div class="card-body p-3">
+                    <div class="row g-2">
+                        <div class="col-md-8">
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-0 text-muted"><i class="bi bi-search"></i></span>
+                                <input type="text" id="moderation-search" class="form-control bg-light border-0" placeholder="Поиск по названию проекта или имени студента...">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-0 text-muted"><i class="bi bi-tags"></i></span>
+                                <input type="text" id="moderation-tag-filter" class="form-control bg-light border-0" placeholder="Фильтр по ролям/тегам...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row row-cols-1 g-3" id="moderation-list">
+                {% for idea in ideas %}
+                <div class="col idea-moderation-item" data-title="{{ idea.title|lower }}" data-author="{{ idea.author.username|lower }} {% if idea.author.profile.first_name %}{{ idea.author.profile.first_name|lower }} {{ idea.author.profile.last_name|lower }}{% endif %}" data-tags="{{ idea.required_people_tags|lower }}">
+                    <div class="card shadow-sm border-0 rounded-4 bg-white border-start border-4 border-warning h-100">
+                        <div class="card-body p-4">
+                            
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="fw-bold text-dark mb-0 card-project-title">{{ idea.title }}</h5>
+                                <span class="badge bg-light text-warning border border-warning px-2.5 py-1.5 rounded-pill small fw-semibold">На рассмотрении</span>
+                            </div>
+                            
+                            <div class="d-flex flex-wrap text-muted small gap-3 mb-3 border-bottom pb-2">
+                                <div>
+                                    <i class="bi bi-person-circle text-primary"></i> 
+                                    Студент: <strong>
+                                        {% if idea.author.profile.first_name and idea.author.profile.last_name %}
+                                            {{ idea.author.profile.last_name }} {{ idea.author.profile.first_name }} ({{ idea.author.username }})
+                                        {% else %}
+                                            {{ idea.author.username }}
+                                        {% endif %}
+                                    </strong>
+                                </div>
+                                <div>
+                                    <i class="bi bi-calendar3"></i> Создано: {{ idea.created_at|date:"d.m.Y H:i" }}
+                                </div>
+                            </div>
+
+                            <div class="p-3 rounded-3 mb-3" style="background-color: #f8f9fa; border-left: 3px solid #dee2e6;">
+                                <p class="mb-0 text-secondary" style="font-size: 0.95rem; line-height: 1.5;">{{ idea.description|linebreaksbr }}</p>
+                            </div>
+                            
+                            {% if idea.required_people_tags %}
+                            <div class="mb-4">
+                                <div class="text-muted small fw-bold text-uppercase mb-1" style="font-size: 0.75rem; letter-spacing: 0.5px;">Требуемые компетенции:</div>
+                                <span class="badge bg-light text-secondary border px-3 py-1.5 rounded-3 font-monospace" style="font-size: 0.85rem;">{{ idea.required_people_tags }}</span>
+                            </div>
+                            {% endif %}
+
+                            <div class="d-flex flex-wrap gap-2 pt-2 border-top">
+                                <a href="{% url 'moderate_idea' idea.pk 'approve' %}" class="btn btn-success rounded-pill px-4 btn-sm fw-bold shadow-sm">
+                                    <i class="bi bi-check-circle-fill"></i> Одобрить публикацию
+                                </a>
+                                
+                                <a href="{% url 'start_moderation_chat' idea.pk %}" class="btn btn-outline-primary rounded-pill px-4 btn-sm fw-bold">
+                                    <i class="bi bi-chat-left-text-fill"></i> Написать автору
+                                </a>
+                                
+                                <a href="{% url 'moderate_idea' idea.pk 'reject' %}" class="btn btn-outline-danger rounded-pill px-4 btn-sm ms-md-auto">
+                                    <i class="bi bi-x-circle"></i> Отклонить
+                                </a>
+                            </div>
+                            
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div id="no-results-message" class="card shadow-sm border-0 rounded-4 text-center p-5 mt-3 bg-white" style="display: none;">
+                <div class="text-muted mb-3 fs-1">
+                    <i class="bi bi-search-heart"></i>
+                </div>
+                <h5 class="fw-bold text-secondary">Ничего не найдено</h5>
+                <p class="text-muted small mb-0">Попробуйте изменить параметры поискового запроса или фильтра тегов.</p>
+            </div>
+
+        {% else %}
+            <div class="card shadow-sm border-0 rounded-4 text-center p-5 mt-2 bg-white">
+                <div class="text-muted mb-3 fs-1">
+                    <i class="bi bi-inbox-fill text-light"></i>
+                </div>
+                <h5 class="fw-bold text-secondary">Очередь модерации пуста</h5>
+                <p class="text-muted small mb-0">Все предложенные проекты проверены, либо студенты ещё не отправляли новые идеи на публикацию.</p>
+            </div>
+        {% endif %}
+
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const searchInput = document.getElementById('moderation-search');
+        const tagInput = document.getElementById('moderation-tag-filter');
+        const listItems = document.querySelectorAll('.idea-moderation-item');
+        const noResultsMessage = document.getElementById('no-results-message');
+        const counterValue = document.getElementById('counter-value');
+
+        function filterList() {
+            const searchQuery = searchInput ? searchInput.value.toLowerCase().trim() : '';
+            const tagQuery = tagInput ? tagInput.value.toLowerCase().trim() : '';
+            let visibleCount = 0;
+
+            listItems.forEach(item => {
+                const title = item.getAttribute('data-title');
+                const author = item.getAttribute('data-author');
+                const tags = item.getAttribute('data-tags');
+
+                const matchesSearch = title.includes(searchQuery) || author.includes(searchQuery);
+                const matchesTags = tags.includes(tagQuery);
+
+                if (matchesSearch && matchesTags) {
+                    item.style.setProperty('display', 'block', 'important');
+                    visibleCount++;
+                } else {
+                    item.style.setProperty('display', 'none', 'important');
+                }
+            });
+
+            if (noResultsMessage) {
+                noResultsMessage.style.display = visibleCount === 0 && listItems.length > 0 ? 'block' : 'none';
+            }
+            if (counterValue) {
+                counterValue.textContent = visibleCount;
+            }
+        }
+
+        if (searchInput) searchInput.addEventListener('input', filterList);
+        if (tagInput) tagInput.addEventListener('input', filterList);
+    });
+</script>
+{% endblock %}

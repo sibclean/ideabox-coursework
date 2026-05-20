@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center align-items-center" style="min-height: 60vh;">
+        <div class="col-md-7 text-center">
+            <div class="card shadow border-0 p-5" style="border-radius: 20px;">
+                <div class="display-1 mb-4">📩</div>
+                <h2 class="fw-bold text-dark">Письмо отправлено!</h2>
+                <p class="lead text-muted mt-3">
+                    Мы отправили ссылку для подтверждения на вашу почту <strong>{{ email }}</strong>.
+                </p>
+                <div class="alert alert-info d-inline-block mt-3">
+                    Если письма нет во «Входящих», пожалуйста, проверьте папку <strong>«Спам»</strong>.
+                </div>
+                <div class="mt-4">
+                    <a href="{% url 'idea_list' %}" class="btn btn-primary btn-lg px-5" style="border-radius: 30px;">На главную</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

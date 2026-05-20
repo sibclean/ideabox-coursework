@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}Мои идеи{% endblock %}
+{% block content %}
+<style>
+    .idea-cover-mini { height: 160px; object-fit: cover; width: 100%; border-top-left-radius: 1rem; border-top-right-radius: 1rem; }
+    .empty-cover-mini { height: 160px; background-color: #f8f9fa; display: flex; align-items: center; justify-content: center; border-top-left-radius: 1rem; border-top-right-radius: 1rem; }
+    .action-buttons { position: relative; z-index: 3; } /* Чтобы кнопки работали поверх stretched-link */
+</style>
+
+<div class="container py-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-5 gap-3">
+        <h2 class="fw-bold mb-0 text-dark"><i class="bi bi-folder2-open text-primary me-2"></i> Управление проектами</h2>
+        <a href="{% url 'idea_add' %}" class="btn btn-primary rounded-pill px-4 py-2 fw-bold shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i> Создать проект
+        </a>
+    </div>
+
+    {% if ideas %}
+        <div class="row g-4">
+            {% for idea in ideas %}
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm border-0 rounded-4 position-relative" style="transition: 0.2s;">
+                    
+                    <div class="position-absolute top-0 end-0 m-3" style="z-index: 2;">
+                        {% if idea.status == 'APP' %}
+                            <span class="badge bg-success shadow-sm px-3 py-2 rounded-pill"><i class="bi bi-check-circle me-1"></i>Одобрено</span>
+                        {% elif idea.status == 'MOD' or idea.status == 'moderation' %}
+                            <span class="badge bg-warning text-dark shadow-sm px-3 py-2 rounded-pill"><i class="bi bi-hourglass-split me-1"></i>Модерация</span>
+                        {% else %}
+                            <span class="badge bg-danger shadow-sm px-3 py-2 rounded-pill">Отклонено</span>
+                        {% endif %}
+                    </div>
+
+                    {% if idea.cover_image %}
+                        <img src="{{ idea.cover_image.url }}" class="idea-cover-mini">
+                    {% else %}
+                        <div class="empty-cover-mini">
+                            <i class="bi bi-image text-muted" style="font-size: 2.5rem; opacity: 0.3;"></i>
+                        </div>
+                    {% endif %}
+
+                    <div class="card-body p-4 d-flex flex-column">
+                        <h5 class="fw-bold mb-2">
+                            <a href="{% url 'idea_detail' pk=idea.pk %}" class="text-decoration-none text-dark stretched-link">
+                                {{ idea.title }}
+                            </a>
+                        </h5>
+                        <p class="text-muted small mb-3 flex-grow-1">{{ idea.description|truncatechars:90 }}</p>
+                        
+                        <div class="d-flex justify-content-between align-items-center mt-auto border-top pt-3 action-buttons">
+                            <span class="small text-muted"><i class="bi bi-calendar3 me-1"></i>{{ idea.created_at|date:"d.m.Y" }}</span>
+                            
+                            <div class="d-flex gap-2">
+                                <a href="{% url 'idea_update' pk=idea.pk %}" class="btn btn-light btn-sm text-primary rounded-circle" style="width: 35px; height: 35px; display: flex; align-items: center; justify-content: center;" title="Редактировать">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </a>
+                                <a href="{% url 'idea_delete' pk=idea.pk %}" class="btn btn-light btn-sm text-danger rounded-circle" style="width: 35px; height: 35px; display: flex; align-items: center; justify-content: center;" title="Удалить">
+                                    <i class="bi bi-trash-fill"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="row justify-content-center align-items-center" style="min-height: 300px;">
+            <div class="col-12 text-center">
+                <div class="mb-3"><i class="bi bi-folder-x text-muted" style="font-size: 4rem; opacity: 0.5;"></i></div>
+                <h3 class="text-muted fw-bold">У вас пока нет идей</h3>
+                <p class="text-muted">Опубликуйте свой первый стартап, чтобы найти команду.</p>
+                <a href="{% url 'idea_add' %}" class="btn btn-primary rounded-pill mt-2 px-4 py-2">Опубликовать проект</a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

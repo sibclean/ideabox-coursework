@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% if form.instance.pk %}Редактирование{% else %}Новая идея{% endif %} | Картотека
+{% endblock %}
+
+{% block content %}
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+<div class="row justify-content-center my-4">
+    <div class="col-lg-8 col-xl-7">
+        
+        <div class="card shadow-lg border-0 rounded-4">
+            <div class="card-body p-5">
+                
+                <div class="text-center mb-5">
+                    <h2 class="fw-bold text-primary">
+                        {% if form.instance.pk %}
+                            Редактирование идеи
+                        {% else %}
+                            Создать новую идею
+                        {% endif %}
+                    </h2>
+                    <p class="text-muted">Заполните поля, чтобы найти единомышленников</p>
+                </div>
+
+                <form method="post" enctype="multipart/form-data" novalidate>
+                    {% csrf_token %}
+                    
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger rounded-3">{{ form.non_field_errors }}</div>
+                    {% endif %}
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Название проекта</label>
+                        {{ form.title }}
+                        {% if form.title.errors %}<div class="text-danger small mt-1">{{ form.title.errors.0 }}</div>{% endif %}
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Категории</label>
+                        {{ form.categories }}
+                        <div class="form-text">Начните вводить название, чтобы найти категорию.</div>
+                        {% if form.categories.errors %}<div class="text-danger small mt-1">{{ form.categories.errors.0 }}</div>{% endif %}
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Описание идеи</label>
+                        {{ form.description }}
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Кто нужен в команду?</label>
+                        {{ form.required_people_tags }}
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Ваши контакты</label>
+                        {{ form.contact_info }}
+                    </div>
+
+                    <div class="mb-5">
+                        <label class="form-label fw-bold d-block">Обложка проекта (изображение)</label>
+                        
+                        <div class="rounded-4 p-4 text-center shadow-sm" style="border: 2px dashed #0d6efd; background-color: #f8f9fa;">
+                            
+                            <div id="upload-icon" class="{% if form.instance.cover_image %}d-none{% endif %}">
+                                <i class="bi bi-image text-primary" style="font-size: 3rem;"></i>
+                                <h5 class="fw-bold mt-2 mb-4 text-dark">Загрузите обложку</h5>
+                            </div>
+
+                            <img id="cover-preview" src="{% if form.instance.cover_image %}{{ form.instance.cover_image.url }}{% endif %}" class="img-fluid rounded-4 shadow-sm mb-4 {% if not form.instance.cover_image %}d-none{% endif %}" style="max-height: 280px; width: 100%; object-fit: cover;">
+                            
+                            <div class="mx-auto text-start" style="max-width: 400px;">
+                                {{ form.cover_image }}
+                                <div class="text-muted small mt-2 text-center">Поддерживаются форматы JPG, PNG (до 5 МБ)</div>
+                            </div>
+                            
+                        </div>
+                        
+                        {% if form.cover_image.errors %}<div class="text-danger small mt-2">{{ form.cover_image.errors.0 }}</div>{% endif %}
+                    </div>
+
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg rounded-pill shadow-sm fw-bold">
+                            {% if form.instance.pk %}Сохранить изменения{% else %}Опубликовать идею{% endif %}
+                        </button>
+                        <a href="{% url 'idea_list' %}" class="btn btn-link text-decoration-none text-muted">Отмена</a>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+    $(document).ready(function() {
+        $('#categories-select').select2({
+            placeholder: "Выберите одну или несколько категорий",
+            allowClear: false,
+            width: '100%',
+            language: { noResults: function() { return "Категория не найдена"; } }
+        });
+
+        // Делаем инпут файла красивым, прямо как в профиле!
+        $('input[type="file"]').addClass('form-control shadow-sm');
+    });
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const fileInput = document.querySelector('input[type="file"]');
+        const previewImg = document.getElementById('cover-preview');
+        const iconBox = document.getElementById('upload-icon');
+
+        // Скрипт нужен только для того, чтобы показать картинку сразу после выбора
+        if (fileInput) {
+            fileInput.addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        previewImg.src = e.target.result;
+                        previewImg.classList.remove('d-none');
+                        if (iconBox) iconBox.classList.add('d-none');
+                    }
+                    reader.readAsDataURL(this.files[0]);
+                }
+            });
+        }
+    });
+</script>
+
+<style>
+    .select2-container .select2-selection--multiple { min-height: 48px; border: 1px solid #ced4da; border-radius: 0.375rem; padding: 4px 8px; display: flex; align-items: center; }
+    .select2-container--default.select2-container--focus .select2-selection--multiple { border-color: #86b7fe; box-shadow: 0 0 0 0.25rem rgba(13,110,253,0.25); outline: 0; }
+    .select2-container--default .select2-selection--multiple .select2-selection__choice { background-color: #0d6efd !important; border: none !important; border-radius: 50px !important; color: white !important; font-size: 0.9rem; padding: 6px 16px !important; margin: 0 !important; }
+</style>
+
+{% endblock %}

@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+{% block title %}Главная{% endblock %}
+{% block container_class %}container-fluid p-0 m-0{% endblock %}
+
+{% block content %}
+<style>
+    .hero-header {
+        background: linear-gradient(135deg, #0d6efd 0%, #0099ff 100%);
+        padding: 4rem 0;
+        margin-top: -1.5rem;
+    }
+    .search-bar-wrapper {
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 20px;
+        padding: 0.4rem;
+        max-width: 1150px;
+        margin: 0 auto;
+        backdrop-filter: blur(10px);
+    }
+    @media (min-width: 768px) {
+        .search-bar-wrapper { border-radius: 50px; }
+    }
+    .search-input {
+        background: transparent;
+        border: none;
+        color: white;
+        box-shadow: none !important;
+        font-size: 0.95rem;
+    }
+    .search-input::placeholder { 
+        color: rgba(255, 255, 255, 0.8); 
+        font-size: 0.85rem;
+    }
+    .search-input:focus { background: transparent; color: white; }
+    .search-icon-box { color: white; opacity: 0.9; font-size: 1.1rem; }
+    
+    .card-hover-effect { transition: transform 0.3s ease, box-shadow 0.3s ease; border: 1px solid rgba(0,0,0,0.05); }
+    .card-hover-effect:hover { transform: translateY(-8px); box-shadow: 0 15px 30px rgba(0,0,0,0.1) !important; }
+    .idea-cover-img { height: 220px; object-fit: cover; border-top-left-radius: 1rem; border-top-right-radius: 1rem; }
+    .empty-cover { height: 220px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); display: flex; align-items: center; justify-content: center; border-top-left-radius: 1rem; border-top-right-radius: 1rem; }
+    .badge-custom { font-weight: 500; letter-spacing: 0.3px; }
+    .text-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+</style>
+
+<div class="hero-header shadow-sm">
+    <div class="container text-center py-5">
+        <h1 class="display-4 fw-bold text-white mb-3">Найди команду мечты</h1>
+        <p class="lead text-white opacity-75 mb-4 mx-auto" style="max-width: 600px;">
+            Платформа для поиска единомышленников. Публикуй стартапы, находи таланты, создавай будущее вместе с нами.
+        </p>
+        
+        <form method="get" action="{% url 'idea_list' %}" class="search-bar-wrapper d-flex flex-column flex-md-row align-items-center mb-4 gap-1">
+            
+            <div class="d-flex align-items-center flex-grow-1 w-100 px-2 py-2 py-md-0">
+                <i class="bi bi-search search-icon-box"></i>
+                <input type="text" name="q" value="{{ request.GET.q }}" class="form-control search-input ms-2" placeholder="Название проекта...">
+            </div>
+            
+            <div class="vr bg-white opacity-50 d-none d-md-block" style="width: 2px;"></div>
+            <hr class="d-md-none text-white w-100 my-0 opacity-25">
+            
+            <div class="d-flex align-items-center flex-grow-1 w-100 px-2 py-2 py-md-0">
+                <i class="bi bi-person-badge search-icon-box"></i>
+                <input type="text" name="role" value="{{ request.GET.role }}" class="form-control search-input ms-2" placeholder="Кто нужен? (Дизайнер...)">
+            </div>
+            
+            <div class="vr bg-white opacity-50 d-none d-md-block" style="width: 2px;"></div>
+            <hr class="d-md-none text-white w-100 my-0 opacity-25">
+
+            <div class="d-flex align-items-center flex-grow-1 w-100 px-2 py-2 py-md-0">
+                <i class="bi bi-tags search-icon-box"></i>
+                <input type="text" name="category" value="{{ request.GET.category }}" class="form-control search-input ms-2" placeholder="Сфера (IT, Маркетинг...)">
+            </div>
+
+            <button type="submit" class="btn btn-light rounded-pill px-4 fw-bold text-primary w-100 w-md-auto mt-2 mt-md-0 shadow-sm" style="min-width: 110px; height: 46px;">Найти</button>
+        </form>
+
+        <div>
+            <a href="{% if user.is_authenticated %}{% url 'idea_add' %}{% else %}{% url 'register' %}{% endif %}" class="btn btn-outline-light rounded-pill px-4">
+                {% if user.is_authenticated %}<i class="bi bi-plus-circle me-2"></i>Добавить свою идею{% else %}Присоединиться к платформе{% endif %}
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="container py-5">
+    
+    {% if request.GET.q or request.GET.role or request.GET.category %}
+        <div class="mb-4">
+            <h4 class="text-muted mb-2">Результаты поиска:</h4>
+            <div class="d-flex gap-2 flex-wrap">
+                {% if request.GET.q %}<span class="badge bg-secondary">Запрос: {{ request.GET.q }}</span>{% endif %}
+                {% if request.GET.role %}<span class="badge bg-secondary">Роль: {{ request.GET.role }}</span>{% endif %}
+                {% if request.GET.category %}<span class="badge bg-secondary">Категория: {{ request.GET.category }}</span>{% endif %}
+                <a href="{% url 'idea_list' %}" class="badge bg-danger text-decoration-none">Сбросить всё <i class="bi bi-x"></i></a>
+            </div>
+        </div>
+    {% else %}
+        <h3 class="mb-4 fw-bold">Последние проекты</h3>
+    {% endif %}
+
+    {% if ideas %}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {% for idea in ideas %} 
+            <div class="col">
+                <div class="card h-100 shadow-sm rounded-4 card-hover-effect">
+                    
+                    {% if idea.cover_image %}
+                        <img src="{{ idea.cover_image.url }}" class="idea-cover-img" alt="{{ idea.title }}">
+                    {% else %}
+                        <div class="empty-cover">
+                            <i class="bi bi-lightbulb text-secondary" style="font-size: 4rem; opacity: 0.2;"></i>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="card-body p-4 d-flex flex-column">
+                        <div class="mb-3 d-flex flex-wrap gap-1">
+                            {% for cat in idea.categories.all|slice:":3" %}
+                                <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill badge-custom px-2 py-1">
+                                    {{ cat.name }}
+                                </span>
+                            {% endfor %}
+                            {% if idea.categories.count > 3 %}
+                                <span class="badge bg-light text-secondary rounded-pill px-2 py-1">+{{ idea.categories.count|add:"-3" }}</span>
+                            {% endif %}
+                        </div>
+
+                        <h4 class="fw-bold mb-3">
+                            <a href="{% url 'idea_detail' pk=idea.pk %}" class="text-decoration-none text-dark stretched-link">
+                                {{ idea.title }}
+                            </a>
+                        </h4>
+                        
+                        <p class="text-muted small mb-4 flex-grow-1 text-clamp-3">
+                            {{ idea.description }}
+                        </p>
+                        
+                        <div class="d-flex justify-content-between align-items-center mt-auto pt-3 border-top position-relative" style="z-index: 2;">
+                            <div class="d-flex align-items-center text-muted small">
+                                {% if idea.author.profile.avatar %}
+                                    <img src="{{ idea.author.profile.avatar.url }}" class="rounded-circle me-2 border" style="width: 28px; height: 28px; object-fit: cover;">
+                                {% else %}
+                                    <i class="bi bi-person-circle fs-4 me-2 text-secondary"></i>
+                                {% endif %}
+                                <span class="text-truncate fw-medium text-dark" style="max-width: 120px;">
+                                    {% if idea.author.profile.first_name %}{{ idea.author.profile.first_name }}{% else %}{{ idea.author.username }}{% endif %}
+                                </span>
+                            </div>
+                            <span class="text-muted small bg-light px-2 py-1 rounded"><i class="bi bi-calendar-event me-1"></i>{{ idea.created_at|date:"d.m.Y" }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center py-5">
+            <div class="mb-4">
+                <i class="bi bi-search" style="font-size: 4rem; color: #dee2e6;"></i>
+            </div>
+            <h3 class="fw-bold text-dark">Ничего не найдено</h3>
+            <p class="text-muted mx-auto mb-4" style="max-width: 500px;">По вашему запросу не найдено ни одного проекта. Попробуйте изменить параметры поиска или создайте свою идею первым!</p>
+            <a href="{% url 'idea_list' %}" class="btn btn-outline-primary rounded-pill px-4 me-2">Сбросить поиск</a>
+            <a href="{% url 'idea_add' %}" class="btn btn-primary rounded-pill px-4">Создать проект</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

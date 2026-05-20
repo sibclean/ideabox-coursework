@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-5">
+    <h1 class="fw-bold mb-4"> Заявки в ваши проекты</h1>
+    
+    <div class="row">
+        {% for req in requests %}
+        <div class="col-12 mb-3">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-4 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="fw-bold mb-1">{{ req.user.username }} → {{ req.idea.title }}</h5>
+                        <p class="mb-1 text-primary"><strong>Роль:</strong> {{ req.role }}</p>
+                        <p class="mb-1"><strong>Контакты:</strong> {{ req.contact_info }}</p>
+                        <p class="text-muted italic">"{{ req.message }}"</p>
+                        <small class="text-muted">Дата: {{ req.created_at|date:"d.m.Y H:i" }}</small>
+                    </div>
+                    <div class="text-end">
+                        {% if req.status == 'pending' %}
+                            <a href="{% url 'respond_to_request' req.id 'accept' %}" class="btn btn-success rounded-pill px-4">Принять</a>
+                            <a href="{% url 'respond_to_request' req.id 'reject' %}" class="btn btn-outline-danger rounded-pill px-4">Отклонить</a>
+                        {% else %}
+                            <span class="badge {% if req.status == 'accepted' %}bg-success{% else %}bg-danger{% endif %} fs-6 rounded-pill">
+                                {{ req.get_status_display }}
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <p class="text-center text-muted">Новых заявок пока нет.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

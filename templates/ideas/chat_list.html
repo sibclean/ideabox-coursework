@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+
+{% block title %}Мои сообщения{% endblock %}
+
+{% block content %}
+<style>
+    .chats-card { background: #ffffff; border-radius: 16px; border: 1px solid #e4e6eb; overflow: hidden; }
+    .chat-item { display: flex; align-items: center; padding: 14px 20px; text-decoration: none; color: #000000; border-bottom: 1px solid #f0f2f5; transition: background-color 0.2s ease; }
+    .chat-item:hover { background-color: #f2f3f5; color: #000000; }
+    .chat-item:last-child { border-bottom: none; }
+
+    /* Универсальный стиль аватарок (и для картинок, и для иконок) */
+    .chat-avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.3rem; flex-shrink: 0; margin-right: 15px; }
+    .avatar-group { background-color: #e8f5e9; color: #2e7d32; }
+    .avatar-personal { background-color: #e3f2fd; color: #1565c0; }
+
+    .chat-info { flex-grow: 1; min-width: 0; }
+    .chat-title { font-size: 1rem; font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chat-title.group-title { color: #2e7d32; }
+    .chat-title.personal-title { color: #000000; }
+    
+    .chat-subtitle { font-size: 0.9rem; color: #65676b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 5px;}
+    
+    .chat-meta { text-align: right; margin-left: 10px; flex-shrink: 0; }
+    .chat-date { font-size: 0.75rem; color: #8f98a0; }
+</style>
+
+<div class="row justify-content-center my-4">
+    <div class="col-md-8 col-lg-6">
+        <div class="d-flex align-items-center mb-4">
+            <h3 class="fw-bold mb-0">💬 Мои диалоги</h3>
+        </div>
+        
+        {% if conversations %}
+            <div class="chats-card shadow-sm">
+                {% for conv in conversations %}
+                <a href="{% url 'chat_room' conv.id %}" class="chat-item">
+                    
+                    {% if conv.idea %}
+                        <div class="chat-avatar avatar-group"><i class="bi bi-people-fill"></i></div>
+                    {% else %}
+                        {% if request.user == conv.request.user %}
+                            {% if conv.request.idea.author.profile.avatar %}
+                                <img src="{{ conv.request.idea.author.profile.avatar.url }}" class="chat-avatar">
+                            {% else %}
+                                <div class="chat-avatar avatar-personal">{{ conv.request.idea.author.username|slice:":1"|upper }}</div>
+                            {% endif %}
+                        {% else %}
+                            {% if conv.request.user.profile.avatar %}
+                                <img src="{{ conv.request.user.profile.avatar.url }}" class="chat-avatar">
+                            {% else %}
+                                <div class="chat-avatar avatar-personal">{{ conv.request.user.username|slice:":1"|upper }}</div>
+                            {% endif %}
+                        {% endif %}
+                    {% endif %}
+                    
+                    <div class="chat-info">
+                        {% if conv.idea %}
+                            <div class="chat-title group-title">👥 {{ conv.idea.title }}</div>
+                        {% else %}
+                            {% if request.user == conv.request.user %}
+                                <div class="chat-title personal-title">
+                                    {% if conv.request.idea.author.profile.first_name %}
+                                        {{ conv.request.idea.author.profile.first_name }} {{ conv.request.idea.author.profile.last_name }}
+                                    {% else %}
+                                        {{ conv.request.idea.author.username }}
+                                    {% endif %}
+                                    <span class="text-muted small fw-normal ms-1">({{ conv.request.idea.title|truncatechars:20 }})</span>
+                                </div>
+                            {% else %}
+                                <div class="chat-title personal-title">
+                                    {% if conv.request.user.profile.first_name %}
+                                        {{ conv.request.user.profile.first_name }} {{ conv.request.user.profile.last_name }}
+                                    {% else %}
+                                        {{ conv.request.user.username }}
+                                    {% endif %}
+                                    <span class="text-muted small fw-normal ms-1">({{ conv.request.idea.title|truncatechars:20 }})</span>
+                                </div>
+                            {% endif %}
+                        {% endif %}
+
+                        <div class="chat-subtitle">
+                            {% with last_msg=conv.messages.last %}
+                                {% if last_msg %}
+                                    {% if last_msg.sender == request.user %}
+                                        <span class="text-primary fw-medium">Вы:</span>
+                                    {% elif conv.idea %}
+                                        <span class="text-dark fw-medium">{{ last_msg.sender.profile.first_name|default:last_msg.sender.username }}:</span>
+                                    {% endif %}
+                                    
+                                    {% if last_msg.image %}
+                                        <i class="bi bi-image text-primary"></i> <span class="text-primary">Фотография</span>
+                                    {% elif last_msg.file %}
+                                        <i class="bi bi-file-earmark-text text-primary"></i> <span class="text-primary">Файл</span>
+                                    {% else %}
+                                        {{ last_msg.text|truncatechars:35 }}
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted fst-italic">Нет сообщений</span>
+                                {% endif %}
+                            {% endwith %}
+                        </div>
+                    </div>
+                    
+                    <div class="chat-meta">
+                        <div class="chat-date">
+                            {% with last_msg=conv.messages.last %}
+                                {% if last_msg %}
+                                    {{ last_msg.created_at|date:"d.m H:i" }}
+                                {% else %}
+                                    {{ conv.created_at|date:"d.m" }}
+                                {% endif %}
+                            {% endwith %}
+                        </div>
+                    </div>
+                    
+                </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="card shadow-sm border-0 rounded-4 text-center p-5 mt-2">
+                <div class="text-muted mb-3" style="font-size: 3.5rem;"><i class="bi bi-chat-left-dots"></i></div>
+                <h5 class="fw-bold">У вас пока нет активных диалогов</h5>
+                <p class="text-muted small mb-0">Чаты автоматически создаются, когда кто-то откликается на вашу идею или вы подаете заявку в команду проекта.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
