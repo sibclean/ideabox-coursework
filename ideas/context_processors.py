@@ -5,7 +5,6 @@ def unread_messages_context(request):
     if not request.user.is_authenticated:
         return {'global_unread_count': 0}
         
-    # Считаем непрочитанные везде: и в личных, и в командных чатах
     unread_count = Message.objects.filter(
         Q(conversation__request__user=request.user) | 
         Q(conversation__request__idea__author=request.user) |
