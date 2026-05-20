@@ -108,7 +108,6 @@
             language: { noResults: function() { return "Категория не найдена"; } }
         });
 
-        // Делаем инпут файла красивым, прямо как в профиле!
         $('input[type="file"]').addClass('form-control shadow-sm');
     });
 
@@ -117,7 +116,6 @@
         const previewImg = document.getElementById('cover-preview');
         const iconBox = document.getElementById('upload-icon');
 
-        // Скрипт нужен только для того, чтобы показать картинку сразу после выбора
         if (fileInput) {
             fileInput.addEventListener('change', function() {
                 if (this.files && this.files[0]) {
