@@ -5,16 +5,15 @@ from django.core.mail import send_mail
 from django.conf import settings
 from .models import UserProfile, Idea, TeamRequest, Conversation
 
-# Автоматическое создание профиля при регистрации
+
 @receiver(post_save, sender=User)
 def create_or_update_user_profile(sender, instance, created, **kwargs):
     if created:
         UserProfile.objects.create(user=instance)
 
-# Уведомление о смене статуса идеи
+
 @receiver(pre_save, sender=Idea)
 def check_status_change(sender, instance, **kwargs):
-    # Если идея новая (еще нет ID), пропускаем
     if not instance.pk:
         return
 
@@ -23,11 +22,9 @@ def check_status_change(sender, instance, **kwargs):
     except Idea.DoesNotExist:
         return
 
-    # Если статус изменился
     if old_idea.status != instance.status:
         send_status_email(instance)
 
-# Вспомогательная функция отправки письма
 def send_status_email(idea):
     subject = f"Изменение статуса вашей идеи: {idea.title}"
     status_display = idea.get_status_display()
@@ -53,7 +50,6 @@ def handle_team_request_changes(sender, instance, created, **kwargs):
     if created:
         Conversation.objects.get_or_create(request=instance)
     
-    # 2. Если автор нажал "Принять" — добавляем в групповой чат проекта
     if instance.status == 'accepted':
         # Ищем или создаем групповой чат для этой идеи
         group_chat, _ = Conversation.objects.get_or_create(idea=instance.idea)
@@ -63,7 +59,6 @@ def handle_team_request_changes(sender, instance, created, **kwargs):
         # Добавляем принятого кандидата
         group_chat.participants.add(instance.user)
 
-# Автоматически создаем комнату для чата при новой заявке в команду
 @receiver(post_save, sender=TeamRequest)
 def create_conversation_for_request(sender, instance, created, **kwargs):
     if created:
