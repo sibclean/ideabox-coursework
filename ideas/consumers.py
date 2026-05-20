@@ -65,7 +65,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     {'type': 'message_deleted', 'message_id': message_id}
                 )
 
-    # --- Отправка событий в браузеры ---
     async def chat_message(self, event):
         await self.send(text_data=json.dumps({
             'type': 'chat_message', 'message_id': event['message_id'], 'message': event['message'],
@@ -92,7 +91,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def message_deleted(self, event):
         await self.send(text_data=json.dumps({'type': 'message_deleted', 'message_id': event['message_id']}))
 
-    # --- Работа с БД ---
     @database_sync_to_async
     def save_message(self, user, conversation_id, text):
         conversation = Conversation.objects.get(id=conversation_id)
