@@ -110,12 +110,10 @@ def idea_create(request):
 def idea_edit(request, pk):
     idea = get_object_or_404(Idea, pk=pk)
     
-    # Защита: редактировать может только автор
     if idea.author != request.user: 
 	        raise Http404("У вас нет прав для редактирования этого проекта.")
         
     if request.method == 'POST':
-        # ВАЖНО: передаем request.FILES и instance
         form = IdeaForm(request.POST, request.FILES, instance=idea)
         if form.is_valid(): 
             form.save()
@@ -191,7 +189,6 @@ def profile_edit(request):
     profile = request.user.profile 
     
     if request.method == 'POST':
-        # ВАЖНО: добавлено request.FILES для обработки картинок (аватарок)
         form = UserProfileForm(request.POST, request.FILES, instance=profile)
         if form.is_valid():
             form.save()
@@ -214,12 +211,11 @@ def terms_of_use(request): return render(request, 'terms_of_use.html')
 def chat_room(request, conversation_id):
     conversation = get_object_or_404(Conversation, id=conversation_id)
     
-    # Проверка доступа (разная для личных и групповых чатов)
     has_access = False
-    if conversation.idea: # Это командный чат
+    if conversation.idea:
         if request.user in conversation.participants.all():
             has_access = True
-    elif conversation.request: # Это личный чат по заявке
+    elif conversation.request:
         if request.user == conversation.request.user or request.user == conversation.request.idea.author:
             has_access = True
             
@@ -227,7 +223,6 @@ def chat_room(request, conversation_id):
         raise Http404("У вас нет доступа к этому чату.")
         
     messages_history = conversation.messages.all()
-    # Помечаем чужие сообщения как прочитанные
     messages_history.exclude(sender=request.user).update(is_read=True)
     
     return render(request, 'ideas/chat_room.html', {
@@ -259,7 +254,6 @@ def moderation_panel(request):
 
 @login_required
 def moderate_idea(request, pk, action):
-    # Снова жесткая проверка прав
     if request.user.profile.role != 'TCH' and not request.user.is_superuser:
         raise PermissionDenied("У вас нет прав на модерацию.")
     
@@ -277,19 +271,16 @@ def moderate_idea(request, pk, action):
 def delete_chat(request, conversation_id):
     conversation = get_object_or_404(Conversation, id=conversation_id)
 
-    # 1. Если это групповой чат (команда проекта)
     if conversation.idea:
         if request.user in conversation.participants.all():
             conversation.participants.remove(request.user)
             messages.success(request, "Вы покинули командный чат.")
             
-    # 2. Если это чат по заявке (кандидат - автор)
     elif conversation.request:
         if request.user == conversation.request.user or request.user == conversation.request.idea.author:
             conversation.delete()
             messages.success(request, "Чат успешно удален.")
             
-    # 3. Если это прямой чат (модератор - студент)
     else:
         if request.user in conversation.participants.all():
             conversation.delete()
@@ -299,21 +290,19 @@ def delete_chat(request, conversation_id):
 @login_required
 def start_moderation_chat(request, idea_id):
     idea = get_object_or_404(Idea, id=idea_id)
-    author = idea.author # Студент, создавший проект
-    teacher = request.user # Преподаватель
+    author = idea.author
+    teacher = request.user
     
     if author == teacher:
         messages.warning(request, "Вы не можете начать чат сами с собой.")
         return redirect('moderation_panel')
 
-    # Ищем существующий личный чат между ними (где нет привязки к конкретной заявке или группе)
     conversation = Conversation.objects.filter(
         request__isnull=True,
         idea__isnull=True,
         participants=teacher
     ).filter(participants=author).first()
 
-    # Если чата нет — создаем пустой чат и добавляем участников
     if not conversation:
         conversation = Conversation.objects.create()
         conversation.participants.add(teacher, author)
@@ -323,13 +312,10 @@ def start_moderation_chat(request, idea_id):
 def chat_room(request, conversation_id):
     conversation = get_object_or_404(Conversation, id=conversation_id)
     
-    # Универсальная и надежная проверка доступа
     has_access = False
     
-    # 1. Проверка по списку участников (для групповых чатов и прямых чатов модерации)
     if conversation.participants.filter(id=request.user.id).exists():
         has_access = True
-    # 2. Проверка по заявке (для старых личных чатов)
     elif conversation.request and (request.user == conversation.request.user or request.user == conversation.request.idea.author):
         has_access = True
         
@@ -353,28 +339,25 @@ def upload_chat_file(request, conversation_id):
         if not uploaded_file:
             return JsonResponse({'error': 'Файл не выбран'}, status=400)
 
-        # Проверяем, картинка это или документ
         is_image = uploaded_file.content_type.startswith('image/')
 
         msg = Message(
             conversation=conversation,
             sender=request.user,
-            text=uploaded_file.name # Имя файла пишем в текст сообщения
+            text=uploaded_file.name
         )
         
         if is_image:
             msg.image = uploaded_file
         else:
             msg.file = uploaded_file
-        msg.save() # Здесь сработает сжатие картинок
+        msg.save()
 
-        # Получаем красивое имя и РОЛЬ для бейджа
         profile = request.user.profile
         full_name = f"{profile.last_name or ''} {profile.first_name or ''}".strip() or request.user.username
         avatar_url = profile.avatar.url if profile.avatar else None
         user_role = profile.role
 
-        # Отправляем событие в WebSocket-группу чата
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             f'chat_{conversation_id}',
@@ -384,7 +367,7 @@ def upload_chat_file(request, conversation_id):
                 'username': request.user.username,
                 'full_name': full_name,
                 'avatar_url': avatar_url,
-                'role': user_role, # Передаем роль в сокет
+                'role': user_role,
                 'text': msg.text,
                 'image_url': msg.image.url if msg.image else None,
                 'file_url': msg.file.url if msg.file else None,
@@ -395,10 +378,8 @@ def upload_chat_file(request, conversation_id):
     return JsonResponse({'error': 'Недопустимый метод'}, status=400)
 @login_required
 def public_profile(request, username):
-    # Ищем пользователя по логину
     target_user = get_object_or_404(User, username=username)
     
-    # ИСПРАВЛЕНИЕ: Фильтруем идеи! Показываем ТОЛЬКО со статусом 'APP' (Одобрено)
     user_ideas = Idea.objects.filter(author=target_user, status='APP').order_by('-created_at')
     
     return render(request, 'ideas/public_profile.html', {
@@ -408,7 +389,6 @@ def public_profile(request, username):
 
 
 def teacher_manager(request):
-    # Прямая проверка: если не суперюзер — сразу выдаем "Запрещено"
     if not request.user.is_authenticated or not request.user.is_superuser:
         return HttpResponseForbidden("<h1>403 Запрещено</h1>")
 
@@ -416,10 +396,8 @@ def teacher_manager(request):
         user_id = request.POST.get('user_id')
         user = get_object_or_404(User, id=user_id)
         
-        # Получаем профиль
         profile, created = UserProfile.objects.get_or_create(user=user)
         
-        # Переключение роли
         if profile.role == UserProfile.Role.STUDENT:
             profile.role = UserProfile.Role.TEACHER
         else:
